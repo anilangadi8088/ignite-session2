@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Backend Connection Test</title>
+<style>
+  body { font-family: sans-serif; max-width: 600px; margin: 40px auto; padding: 0 16px; background: #111; color: #eee; }
+  h1 { font-size: 20px; }
+  button { padding: 12px 20px; font-size: 15px; cursor: pointer; margin: 12px 0; }
+  #result { white-space: pre-wrap; background: #222; padding: 16px; border-radius: 8px; font-family: monospace; font-size: 13px; margin-top: 16px; border: 1px solid #444; min-height: 60px; }
+  .ok { color: #7FD68A; }
+  .fail { color: #FF9B7A; }
+</style>
+</head>
+<body>
+  <h1>Backend Connection Test</h1>
+  <p>This sends one test registration directly and shows exactly what comes back — no dev tools needed.</p>
+
+  <!-- ⚠️ Paste the SAME Web App URL you used in registration-form.html -->
+  <p id="urlDisplay" style="font-size:12px;color:#999;"></p>
+
+  <button onclick="runTest()">Run Test Now</button>
+
+  <div id="result">(nothing yet — click the button above)</div>
+
+<script>
+  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwjBe9RZBg3yG5ANsLQeMat_IMt88X6kYB8sNffEJ-VQgceuG7NWbV_3yB5AxZmH6-A/exec";
+
+  document.getElementById('urlDisplay').textContent = "Testing against: " + WEB_APP_URL;
+
+  async function runTest() {
+    const result = document.getElementById('result');
+    result.textContent = "Sending request... please wait (can take a few seconds)";
+    result.className = "";
+
+    if (WEB_APP_URL.indexOf("PASTE_YOUR") === 0) {
+      result.textContent = "⚠️ You forgot to paste your Web App URL into THIS file (debug-test.html), not just the main form.";
+      result.className = "fail";
+      return;
+    }
+
+    const payload = {
+      action: "register",
+      name: "Debug Test",
+      cell: "9999999999",
+      email: "debugtest@example.com",
+      method: "cash",
+      website: ""
+    };
+
+    try {
+      const res = await fetch(WEB_APP_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload)
+      });
+
+      const text = await res.text();
+
+      result.textContent =
+        "HTTP Status: " + res.status + " " + res.statusText + "\n\n" +
+        "Raw response body:\n" + text;
+
+      if (res.ok) {
+        result.className = "ok";
+      } else {
+        result.className = "fail";
+      }
+    } catch (err) {
+      result.textContent = "Fetch FAILED before even reaching the server.\n\nError details:\n" + err.toString() + "\n\nThis usually means: wrong URL, deployment not accessible, or a network/browser block.";
+      result.className = "fail";
+    }
+  }
+</script>
+</body>
+</html>
