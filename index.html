@@ -178,12 +178,14 @@
     </div>
 
     <div class="card">
-      <form id="regForm">
+      <form id="regForm" target="hiddenFrame" method="POST" action="https://script.google.com/macros/s/AKfycbwjBe9RZBg3yG5ANsLQeMat_IMt88X6kYB8sNffEJ-VQgceuG7NWbV_3yB5AxZmH6-A/exec">
         <!-- Honeypot field: invisible to real users, but bots that
              auto-fill every input will fill this in, letting the
              backend silently ignore the submission. Do not remove. -->
         <input type="text" id="website" name="website" autocomplete="off" tabindex="-1"
           style="position:absolute;left:-9999px;opacity:0;height:0;width:0;">
+        <input type="hidden" name="action" value="register">
+        <input type="hidden" id="methodField" name="method" value="">
 
         <div class="field">
           <label for="name">Full Name</label>
@@ -229,68 +231,64 @@
           <a href="#" class="upi-link-btn" id="upiLinkBtn" target="_blank">Open in UPI App</a>
         </div>
       </form>
+      <iframe name="hiddenFrame" id="hiddenFrame" style="display:none;"></iframe>
       <p class="footnote">Your registration is marked "Successful" only once the organizer personally verifies your payment.<br>No automatic/fake confirmations.</p>
     </div>
   </div>
 
 <script>
-
-  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwjBe9RZBg3yG5ANsLQeMat_lMt88X6kYB8sNffEJ-VQgceuG7NWbV_3yB5AxZmH6-A/exec";
+  // ⚠️ REQUIRED: paste your deployed Apps Script Web App URL in TWO places:
+  //   1. The form's "action" attribute above (search for PASTE_YOUR)
+  //   2. Nowhere else needed - this version submits via a real form,
+  //      not fetch(), so there's no WEB_APP_URL constant here anymore.
 
   let selectedMethod = null;
 
   function selectMethod(method) {
     selectedMethod = method;
+    document.getElementById('methodField').value = method;
     document.querySelectorAll('.pay-option').forEach(el => {
       el.classList.toggle('selected', el.dataset.method === method);
     });
   }
 
-  document.getElementById('regForm').addEventListener('submit', async function (e) {
-    e.preventDefault();
-    const btn = document.getElementById('submitBtn');
+  const form = document.getElementById('regForm');
+  const btn = document.getElementById('submitBtn');
 
-    if (!selectedMethod) { showStatus('error', 'Please select a payment method.'); return; }
-    if (WEB_APP_URL.indexOf('PASTE_YOUR') === 0) {
-      showStatus('error', 'Form not connected yet — paste your Apps Script Web App URL into WEB_APP_URL.');
+  form.addEventListener('submit', function (e) {
+    if (!selectedMethod) {
+      e.preventDefault();
+      showStatus('error', 'Please select a payment method.');
       return;
     }
-
-    const payload = {
-      action: 'register',
-      name: document.getElementById('name').value.trim(),
-      cell: document.getElementById('cell').value.trim(),
-      email: document.getElementById('email').value.trim(),
-      method: selectedMethod,
-      website: document.getElementById('website').value // honeypot — must stay empty
-    };
-
+    if (form.action.indexOf('PASTE_YOUR') !== -1) {
+      e.preventDefault();
+      showStatus('error', 'Form not connected yet — paste your Apps Script Web App URL into the form\'s action attribute.');
+      return;
+    }
+    // Let the form actually submit to the hidden iframe (no preventDefault here).
     btn.disabled = true;
     btn.textContent = 'Processing…';
     showStatus('pending', 'Creating your registration…');
+  });
 
-    try {
-      const res = await fetch(WEB_APP_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
+  // The hidden iframe loads a tiny page from Apps Script that sends
+  // its result back here via postMessage — this is what replaces
+  // reading a fetch() response, and it works even when fetch() itself
+  // gets blocked by Apps Script's CORS behavior.
+  window.addEventListener('message', function (event) {
+    const data = event.data;
+    if (!data || !data.status) return; // ignore unrelated messages
 
-      if (data.status === 'pending' && data.method.indexOf('upi') !== -1) {
-        showStatus('success', 'Seat reserved! Registration ID: ' + data.regId + '. Scan the QR below to pay.');
-        showUpiQr(data);
-        btn.textContent = 'Reserved ✓';
-      } else if (data.status === 'pending') {
-        showStatus('pending', 'Seat reserved! Registration ID: ' + data.regId + '. Pay at the venue — you\'ll get an email once the organizer confirms.');
-        btn.textContent = 'Reserved ✓';
-      } else {
-        showStatus('error', data.message || 'Something went wrong. Please try again.');
-        btn.disabled = false;
-        btn.textContent = 'Reserve My Seat';
-      }
-    } catch (err) {
-      showStatus('error', 'Could not reach the server. Please check your connection and try again.');
+    if (data.status === 'pending' && data.method && data.method.indexOf('upi') !== -1) {
+      showStatus('success', 'Seat reserved! Registration ID: ' + data.regId + '. Scan the QR below to pay.');
+      showUpiQr(data);
+      btn.textContent = 'Reserved ✓';
+    } else if (data.status === 'pending') {
+      showStatus('pending', 'Seat reserved! Registration ID: ' + data.regId + '. Pay at the venue — you\'ll get an email once the organizer confirms.');
+      btn.textContent = 'Reserved ✓';
+    } else {
+      showStatus('error', data.message || 'Something went wrong. Please try again.');
       btn.disabled = false;
       btn.textContent = 'Reserve My Seat';
     }
